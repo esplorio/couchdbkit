@@ -19,6 +19,7 @@ add possibility to a document to register itself in CouchdbkitHandler
 """
 import re
 import sys
+from itertools import chain
 
 try:
     from django.db.models.options import get_verbose_name
@@ -26,6 +27,7 @@ except ImportError:
     from django.utils.text import camel_case_to_spaces as get_verbose_name
 
 from django.conf import settings
+from django.db.models.options import make_immutable_fields_list
 from django.utils.translation import activate, deactivate_all, get_language, \
 string_concat
 from django.utils.encoding import smart_str, force_unicode
@@ -48,6 +50,8 @@ __all__ = ['Property', 'StringProperty', 'IntegerProperty',
 DEFAULT_NAMES = ('verbose_name', 'db_table', 'ordering',
                  'app_label')
 
+PROXY_PARENTS = object()
+
 class Options(object):
     """ class based on django.db.models.options. We only keep
     useful bits."""
@@ -58,6 +62,11 @@ class Options(object):
         self.object_name, self.app_label = None, app_label
         self.meta = meta
         self.admin = None
+        self.abstract = False
+        self._get_fields_cache = {}
+        self.local_fields = []
+        self.local_many_to_many = []
+        self.virtual_fields = []
 
     def contribute_to_class(self, cls, name):
         cls._meta = self
@@ -66,6 +75,7 @@ class Options(object):
         self.object_name = cls.__name__
         self.module_name = self.object_name.lower()
         self.verbose_name = get_verbose_name(self.object_name)
+        self.model = cls
 
         # Next, apply any overridden values from 'class Meta'.
         if self.meta:
@@ -108,6 +118,97 @@ class Options(object):
         activate(lang)
         return raw
     verbose_name_raw = property(verbose_name_raw)
+
+    def _get_fields(self, forward=True, reverse=True, include_parents=True, include_hidden=False,
+                    seen_models=None):
+        """
+        Internal helper function to return fields of the model.
+        * If forward=True, then fields defined on this model are returned.
+        * If reverse=True, then relations pointing to this model are returned.
+        * If include_hidden=True, then fields with is_hidden=True are returned.
+        * The include_parents argument toggles if fields from parent models
+          should be included. It has three values: True, False, and
+          PROXY_PARENTS. When set to PROXY_PARENTS, the call will return all
+          fields defined for the current model or any of its parents in the
+          parent chain to the model's concrete model.
+        """
+        if include_parents not in (True, False, PROXY_PARENTS):
+            raise TypeError("Invalid argument for include_parents: %s" % (include_parents,))
+        # This helper function is used to allow recursion in ``get_fields()``
+        # implementation and to provide a fast way for Django's internals to
+        # access specific subsets of fields.
+
+        # We must keep track of which models we have already seen. Otherwise we
+        # could include the same field multiple times from different models.
+        topmost_call = False
+        if seen_models is None:
+            seen_models = set()
+            topmost_call = True
+        seen_models.add(self.model)
+
+        # Creates a cache key composed of all arguments
+        cache_key = (forward, reverse, include_parents, include_hidden, topmost_call)
+
+        try:
+            # In order to avoid list manipulation. Always return a shallow copy
+            # of the results.
+            return self._get_fields_cache[cache_key]
+        except KeyError:
+            pass
+
+        fields = []
+        # Recursively call _get_fields() on each parent, with the same
+        # options provided in this call.
+        if include_parents is not False:
+            for parent in self.parents:
+                # In diamond inheritance it is possible that we see the same
+                # model from two different routes. In that case, avoid adding
+                # fields from the same parent again.
+                if parent in seen_models:
+                    continue
+                if (parent._meta.concrete_model != self.concrete_model and
+                        include_parents == PROXY_PARENTS):
+                    continue
+                for obj in parent._meta._get_fields(
+                        forward=forward, reverse=reverse, include_parents=include_parents,
+                        include_hidden=include_hidden, seen_models=seen_models):
+                    if hasattr(obj, 'parent_link') and obj.parent_link:
+                        continue
+                    fields.append(obj)
+        if reverse:
+            # Tree is computed once and cached until the app cache is expired.
+            # It is composed of a list of fields pointing to the current model
+            # from other models.
+            all_fields = self._relation_tree
+            for field in all_fields:
+                # If hidden fields should be included or the relation is not
+                # intentionally hidden, add to the fields dict.
+                if include_hidden or not field.rel.hidden:
+                    fields.append(field.rel)
+
+        if forward:
+            fields.extend(
+                field for field in chain(self.local_fields, self.local_many_to_many)
+            )
+            # Virtual fields are recopied to each child model, and they get a
+            # different model as field.model in each child. Hence we have to
+            # add the virtual fields separately from the topmost call. If we
+            # did this recursively similar to local_fields, we would get field
+            # instances with field.model != self.model.
+            if topmost_call:
+                fields.extend(
+                    f for f in self.virtual_fields
+                )
+
+        # In order to avoid list manipulation. Always
+        # return a shallow copy of the results
+        fields = make_immutable_fields_list("get_fields()", fields)
+
+        # Store result into cache for later access
+        self._get_fields_cache[cache_key] = fields
+        print(fields)
+        return fields
+
 
 class DocumentMeta(schema.SchemaProperties):
     def __new__(cls, name, bases, attrs):
