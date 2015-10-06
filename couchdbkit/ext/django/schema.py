@@ -20,17 +20,21 @@ add possibility to a document to register itself in CouchdbkitHandler
 import re
 import sys
 from itertools import chain
+from collections import OrderedDict
 
 try:
     from django.db.models.options import get_verbose_name
 except ImportError:
     from django.utils.text import camel_case_to_spaces as get_verbose_name
 
+from django.apps import apps
 from django.conf import settings
 from django.db.models.options import make_immutable_fields_list
+from django.core.exceptions import FieldDoesNotExist
 from django.utils.translation import activate, deactivate_all, get_language, \
 string_concat
 from django.utils.encoding import smart_str, force_unicode
+from django.utils.functional import cached_property
 
 from couchdbkit import schema
 from couchdbkit.ext.django.loading import get_schema, register_schema, \
@@ -67,6 +71,8 @@ class Options(object):
         self.local_fields = []
         self.local_many_to_many = []
         self.virtual_fields = []
+        self.parents = OrderedDict()
+        self.apps = apps
 
     def contribute_to_class(self, cls, name):
         cls._meta = self
@@ -118,6 +124,47 @@ class Options(object):
         activate(lang)
         return raw
     verbose_name_raw = property(verbose_name_raw)
+
+    def get_field(self, field_name, many_to_many=None):
+        """
+        Returns a field instance given a field name. The field can be either a
+        forward or reverse field, unless many_to_many is specified; if it is,
+        only forward fields will be returned.
+        The many_to_many argument exists for backwards compatibility reasons;
+        it has been deprecated and will be removed in Django 2.0.
+        """
+        m2m_in_kwargs = many_to_many is not None
+        try:
+            # In order to avoid premature loading of the relation tree
+            # (expensive) we prefer checking if the field is a forward field.
+            field = self._forward_fields_map[field_name]
+
+            if many_to_many is False and field.many_to_many:
+                raise FieldDoesNotExist(
+                    '%s has no field named %r' % (self.object_name, field_name)
+                )
+
+            return field
+        except KeyError:
+            # If the app registry is not ready, reverse fields are
+            # unavailable, therefore we throw a FieldDoesNotExist exception.
+            if not self.apps.models_ready:
+                raise FieldDoesNotExist(
+                    "%s has no field named %r. The app cache isn't ready yet, "
+                    "so if this is an auto-created related field, it won't "
+                    "be available yet." % (self.object_name, field_name)
+                )
+
+        try:
+            if m2m_in_kwargs:
+                # Previous API does not allow searching reverse fields.
+                raise FieldDoesNotExist('%s has no field named %r' % (self.object_name, field_name))
+
+            # Retrieve field instance by name from cached or just-computed
+            # field map.
+            return self.fields_map[field_name]
+        except KeyError:
+            raise FieldDoesNotExist('%s has no field named %r' % (self.object_name, field_name))
 
     def _get_fields(self, forward=True, reverse=True, include_parents=True, include_hidden=False,
                     seen_models=None):
@@ -209,6 +256,35 @@ class Options(object):
         print(fields)
         return fields
 
+    @cached_property
+    def _forward_fields_map(self):
+        res = {}
+        fields = self._get_fields(reverse=False)
+        for field in fields:
+            res[field.name] = field
+            # Due to the way Django's internals work, get_field() should also
+            # be able to fetch a field by attname. In the case of a concrete
+            # field with relation, includes the *_id name too
+            try:
+                res[field.attname] = field
+            except AttributeError:
+                pass
+        return res
+
+    @cached_property
+    def fields_map(self):
+        res = {}
+        fields = self._get_fields(forward=False, include_hidden=True)
+        for field in fields:
+            res[field.name] = field
+            # Due to the way Django's internals work, get_field() should also
+            # be able to fetch a field by attname. In the case of a concrete
+            # field with relation, includes the *_id name too
+            try:
+                res[field.attname] = field
+            except AttributeError:
+                pass
+        return res
 
 class DocumentMeta(schema.SchemaProperties):
     def __new__(cls, name, bases, attrs):
