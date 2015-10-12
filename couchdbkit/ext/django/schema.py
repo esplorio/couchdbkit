@@ -34,6 +34,8 @@ string_concat
 from django.utils.encoding import smart_str, force_unicode
 from django.utils.functional import cached_property
 
+from django.db.models.fields import Field
+
 from couchdbkit import schema
 from couchdbkit.ext.django.loading import get_schema, register_schema, \
 get_db
@@ -74,6 +76,7 @@ class Options(object):
 
     def contribute_to_class(self, cls, name):
         cls._meta = self
+        cls._meta.pk = PKField()
         self.installed = re.sub('\.models$', '', cls.__module__) in settings.INSTALLED_APPS
         # First, construct the default values for these options.
         self.object_name = cls.__name__
@@ -209,6 +212,17 @@ class Options(object):
             except AttributeError:
                 pass
         return res
+
+
+class PKField(Field):
+    name = 'pk'
+    attname = 'pk'
+
+    def to_python(self, value, *args, **kwargs):
+        return str(value)
+
+    def value_to_string(self, obj):
+        return str(obj.pk)
 
 class DocumentMeta(schema.SchemaProperties):
     def __new__(cls, name, bases, attrs):
