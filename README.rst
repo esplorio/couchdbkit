@@ -6,10 +6,10 @@ manage CouchDB. It allows you to manage a CouchDBserver, databases, doc
 managements and view access. All objects mostly reflect python objects for
 convenience. Server and Databases objects could be used for example as easy
 as using a dict.
-
-.. image:: https://secure.travis-ci.org/benoitc/couchdbkit.png?branch=master
-    :alt: Build Status
-    :target: https://secure.travis-ci.org/benoitc/couchdbkit
+    
+.. image:: https://requires.io/github/esplorio/couchdbkit/requirements.svg?branch=master
+     :target: https://requires.io/github/esplorio/couchdbkit/requirements/?branch=master
+     :alt: Requirements Status
 
 Installation
 ------------
