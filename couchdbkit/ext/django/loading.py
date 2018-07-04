@@ -21,6 +21,7 @@ and manage db sessions
 
 import sys
 import os
+from collections import OrderedDict
 
 from restkit import BasicAuth
 from couchdbkit import Server
@@ -28,18 +29,18 @@ from couchdbkit import push
 from couchdbkit.resource import CouchdbResource
 from couchdbkit.exceptions import ResourceNotFound
 from django.conf import settings
-from django.utils.datastructures import SortedDict
 
 COUCHDB_DATABASES = getattr(settings, "COUCHDB_DATABASES", [])
 COUCHDB_TIMEOUT = getattr(settings, "COUCHDB_TIMEOUT", 300)
+
 
 class CouchdbkitHandler(object):
     """ The couchdbkit handler for django """
 
     # share state between instances
     __shared_state__ = dict(
-            _databases = {},
-            app_schema = SortedDict()
+        _databases={},
+        app_schema=OrderedDict()
     )
 
     def __init__(self, databases):
@@ -166,7 +167,6 @@ class CouchdbkitHandler(object):
                 print '%s not found.' % (from_id, )
                 return
 
-
     def get_db(self, app_label, register=False):
         """ retrieve db session for a django application """
         if register:
@@ -183,7 +183,7 @@ class CouchdbkitHandler(object):
         """ register a Document object"""
         for s in schema:
             schema_name = schema[0].__name__.lower()
-            schema_dict = self.app_schema.setdefault(app_label, SortedDict())
+            schema_dict = self.app_schema.setdefault(app_label, OrderedDict())
             if schema_name in schema_dict:
                 fname1 = os.path.abspath(sys.modules[s.__module__].__file__)
                 fname2 = os.path.abspath(sys.modules[schema_dict[schema_name].__module__].__file__)
@@ -193,7 +193,8 @@ class CouchdbkitHandler(object):
 
     def get_schema(self, app_label, schema_name):
         """ retriev Document object from its name and app name """
-        return self.app_schema.get(app_label, SortedDict()).get(schema_name.lower())
+        return self.app_schema.get(app_label, OrderedDict()).get(schema_name.lower())
+
 
 couchdbkit_handler = CouchdbkitHandler(COUCHDB_DATABASES)
 register_schema = couchdbkit_handler.register_schema

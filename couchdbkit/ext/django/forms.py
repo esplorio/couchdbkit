@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2008-2009 Benoit Chesneau <benoitc@e-engura.com> 
+# Copyright (c) 2008-2009 Benoit Chesneau <benoitc@e-engura.com>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,14 +17,14 @@
 # code heavily inspired from django.forms.models
 # Copyright (c) Django Software Foundation and individual contributors.
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without modification,
 # are permitted provided that the following conditions are met:
 #
-#    1. Redistributions of source code must retain the above copyright notice, 
+#    1. Redistributions of source code must retain the above copyright notice,
 #       this list of conditions and the following disclaimer.
-#    
-#    2. Redistributions in binary form must reproduce the above copyright 
+#
+#    2. Redistributions in binary form must reproduce the above copyright
 #       notice, this list of conditions and the following disclaimer in the
 #       documentation and/or other materials provided with the distribution.
 #
@@ -43,7 +43,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-""" Implement DocumentForm object. It map Document objects to Form and 
+""" Implement DocumentForm object. It map Document objects to Form and
 works like ModelForm object :
 
     >>> from couchdbkit.ext.django.forms  import DocumentForm
@@ -59,9 +59,9 @@ works like ModelForm object :
     # Creating a form to change an existing article.
     >>> article = Article.get(someid)
     >>> form = ArticleForm(instance=article)
-    
 
-The generated Form class will have a form field for every model field. 
+
+The generated Form class will have a form field for every model field.
 Each document property has a corresponding default form field:
 
 * StringProperty   ->  CharField,
