@@ -37,8 +37,7 @@ from django.utils.functional import cached_property
 from django.db.models.fields import Field
 
 from couchdbkit import schema
-from couchdbkit.ext.django.loading import get_schema, register_schema, \
-get_db
+from couchdbkit.ext.django.loading import get_schema, register_schema, get_db
 
 __all__ = ['Property', 'StringProperty', 'IntegerProperty',
             'DecimalProperty', 'BooleanProperty', 'FloatProperty',
@@ -55,6 +54,7 @@ DEFAULT_NAMES = ('verbose_name', 'db_table', 'ordering',
                  'app_label')
 
 PROXY_PARENTS = object()
+
 
 class Options(object):
     """ class based on django.db.models.options. We only keep
@@ -167,8 +167,7 @@ class Options(object):
         except KeyError:
             raise FieldDoesNotExist('%s has no field named %r' % (self.object_name, field_name))
 
-    def _get_fields(self, forward=True, reverse=True, include_parents=True, include_hidden=False,
-                    seen_models=None):
+    def _get_fields(self, **_):
         """
         Provide a mostly no-op Django compatible API for Options._get_fields
 
@@ -224,6 +223,7 @@ class PKField(Field):
     def value_to_string(self, obj):
         return str(obj.pk)
 
+
 class DocumentMeta(schema.SchemaProperties):
     def __new__(cls, name, bases, attrs):
         super_new = super(DocumentMeta, cls).__new__
@@ -256,6 +256,7 @@ class DocumentMeta(schema.SchemaProperties):
         else:
             setattr(cls, name, value)
 
+
 class Document(schema.Document):
     """ Document object for django extension """
     __metaclass__ = DocumentMeta
@@ -271,6 +272,7 @@ class Document(schema.Document):
             db = get_db(app_label)
             cls._db = db
         return db
+
 
 DocumentSchema = schema.DocumentSchema
 
