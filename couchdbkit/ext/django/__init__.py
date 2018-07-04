@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2008-2009 Benoit Chesneau <benoitc@e-engura.com> 
+# Copyright (c) 2008-2009 Benoit Chesneau <benoitc@e-engura.com>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -18,7 +18,7 @@
 Extension to use couchdbkit in Django 1.x. It allows you to use couchdbkit
 easily in your django projects.
 
-Just add to your settings the `COUCHDB_DATABASES` that defines 
+Just add to your settings the `COUCHDB_DATABASES` that defines
 
         COUCHDB_DATABASES = (
             ('djangoapp.greeting', 'http://127.0.0.1:5984/greeting'),
@@ -37,7 +37,7 @@ couchdbkit documents :
         ....
     )
 
-Add your documents objects in models.py : 
+Add your documents objects in models.py :
 
     from couchdbkit.ext.django.schema import *
     class Greeting(Document):
@@ -46,32 +46,32 @@ Add your documents objects in models.py :
         date = DateTimeProperty(default=datetimee.utcnow)
 
 and use it in your views.py :
-        
+
     class GreetingForm(DocumentForm):
-        
+
         class Meta:
             document = Greeting
 
     def home(request):
-        
+
         greet = None
-        
+
         if request.POST:
             form = GreetingForm(request.POST)
             if form.is_valid():
-                greet = form.save()  
+                greet = form.save()
         else:
             form = GreetingForm()
-            
+
         greetings = Greeting.view('greeting/all')
-        
+
         return render("home.html", {
             "form": form,
             "greet": greet,
             "greetings": greetings
         }, context_instance=RequestContext(request)
 
-You could notice in this example the `DocumentForm` object. 
+You could notice in this example the `DocumentForm` object.
 This object works like the ModelForm object but for couchdb
 documents. Very easy.
 
