@@ -76,13 +76,13 @@ Each document property has a corresponding default form field:
 
 More fields types will be supported soon.
 """
+from collections import OrderedDict
 
-
+import six
 from django.utils.text import capfirst
-from django.utils.datastructures import SortedDict
-from django.forms.util import ErrorList
-from django.forms.forms import BaseForm, get_declared_fields
-from django.forms import fields as f
+from django.forms.utils import ErrorList
+from django.forms.forms import BaseForm
+from django.forms import fields as f, Field
 from django.forms.widgets import media_property
 
 FIELDS_PROPERTES_MAPPING = {
@@ -96,16 +96,17 @@ FIELDS_PROPERTES_MAPPING = {
     "TimeProperty": f.TimeField
 }
 
+
 def document_to_dict(instance, properties=None, exclude=None):
     """
     Returns a dict containing the data in ``instance`` suitable for passing as
     a Form's ``initial`` keyword argument.
 
-    ``properties`` is an optional list of properties names. If provided, 
+    ``properties`` is an optional list of properties names. If provided,
     only the named properties will be included in the returned dict.
 
     ``exclude`` is an optional list of properties names. If provided, the named
-    properties will be excluded from the returned dict, even if they are listed 
+    properties will be excluded from the returned dict, even if they are listed
     in the ``properties`` argument.
     """
     # avoid a circular import
@@ -118,28 +119,28 @@ def document_to_dict(instance, properties=None, exclude=None):
         data[prop_name] = instance[prop_name]
     return data
 
+
 def fields_for_document(document, properties=None, exclude=None):
     """
-    Returns a ``SortedDict`` containing form fields for the given document.
+    Returns a ``OrderedDict`` containing form fields for the given document.
 
-    ``properties`` is an optional list of properties names. If provided, 
+    ``properties`` is an optional list of properties names. If provided,
     only the named properties will be included in the returned properties.
 
     ``exclude`` is an optional list of properties names. If provided, the named
-    properties will be excluded from the returned properties, even if 
+    properties will be excluded from the returned properties, even if
     they are listed in the ``properties`` argument.
     """
     field_list = []
-    
-    values = []
+
     if properties:
         values = [document._properties[prop] for prop in properties if \
                                                 prop in document._properties]
     else:
         values = document._properties.values()
         values.sort(lambda a, b: cmp(a.creation_counter, b.creation_counter))
-    
-    for prop in values: 
+
+    for prop in values:
         if properties and not prop.name in properties:
             continue
         if exclude and prop.name in exclude:
@@ -147,28 +148,52 @@ def fields_for_document(document, properties=None, exclude=None):
         property_class_name = prop.__class__.__name__
         if property_class_name in FIELDS_PROPERTES_MAPPING:
             defaults = {
-                'required': prop.required, 
-                'label': capfirst(prop.verbose_name), 
+                'required': prop.required,
+                'label': capfirst(prop.verbose_name),
             }
-            
+
             if prop.default is not None:
                 defaults['initial'] = prop.default_value
-                
+
             if prop.choices:
                 if prop.default:
                     defaults['choices'] = prop.default_value() + list(
                                     prop.choices)
                     defaults['coerce'] = prop.to_python
-                
-            field_list.append((prop.name, 
+
+            field_list.append((prop.name,
                 FIELDS_PROPERTES_MAPPING[property_class_name](**defaults)))
-    return SortedDict(field_list)
+    return OrderedDict(field_list)
+
+
+def get_declared_fields(bases, attrs, with_base_fields=True):
+    fields = [
+        (field_name, attrs.pop(field_name))
+        for field_name, obj in list(six.iteritems(attrs)) if isinstance(obj, Field)
+    ]
+    fields.sort(key=lambda x: x[1].creation_counter)
+
+    # If this class is subclassing another Form, add that Form's fields.
+    # Note that we loop over the bases in *reverse*. This is necessary in
+    # order to preserve the correct order of fields.
+    if with_base_fields:
+        for base in bases[::-1]:
+            if hasattr(base, 'base_fields'):
+                fields = list(six.iteritems(base.base_fields)) + fields
+    else:
+        for base in bases[::-1]:
+            if hasattr(base, 'declared_fields'):
+                fields = list(six.iteritems(base.declared_fields)) + fields
+
+    return OrderedDict(fields)
+
 
 class DocumentFormOptions(object):
     def __init__(self, options=None):
         self.document = getattr(options, 'document', None)
         self.properties = getattr(options, 'properties', None)
         self.exclude = getattr(options, 'exclude', None)
+
 
 class DocumentFormMetaClass(type):
     def __new__(cls, name, bases, attrs):
@@ -177,20 +202,20 @@ class DocumentFormMetaClass(type):
         except NameError:
             # We are defining ModelForm itself.
             parents = None
-            
+
         declared_fields = get_declared_fields(bases, attrs, False)
         new_class = super(DocumentFormMetaClass, cls).__new__(cls, name, bases,
                     attrs)
-                
+
         if not parents:
             return new_class
-        
+
         if 'media' not in attrs:
             new_class.media = media_property(new_class)
-    
-        opts = new_class._meta = DocumentFormOptions(getattr(new_class, 
+
+        opts = new_class._meta = DocumentFormOptions(getattr(new_class,
                                                 'Meta', None))
-        
+
         if opts.document:
             # If a document is defined, extract form fields from it.
             fields = fields_for_document(opts.document, opts.properties,
@@ -200,35 +225,36 @@ class DocumentFormMetaClass(type):
             fields.update(declared_fields)
         else:
             fields = declared_fields
-    
+
         new_class.declared_fields = declared_fields
         new_class.base_fields = fields
         return new_class
-    
+
+
 class BaseDocumentForm(BaseForm):
     """ Base Document Form object """
-    
-    def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None, 
+
+    def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
             initial=None, error_class=ErrorList, label_suffix=":",
             empty_permitted=False, instance=None):
-            
+
         opts = self._meta
-        
+
         if instance is None:
             self.instance = opts.document()
             object_data = {}
         else:
             self.instance = instance
-            object_data = document_to_dict(instance, opts.properties, 
-                                        opts.exclude) 
-    
+            object_data = document_to_dict(instance, opts.properties,
+                                        opts.exclude)
+
         if initial is not None:
             object_data.update(initial)
-            
-        super(BaseDocumentForm, self).__init__(data, files, auto_id, prefix, 
-                                            object_data, error_class, 
+
+        super(BaseDocumentForm, self).__init__(data, files, auto_id, prefix,
+                                            object_data, error_class,
                                             label_suffix, empty_permitted)
-                                            
+
     def save(self, commit=True, dynamic=True):
         """
         Saves this ``form``'s cleaned_data into document instance
@@ -237,7 +263,7 @@ class BaseDocumentForm(BaseForm):
         If commit=True, then the changes to ``instance`` will be saved to the
         database. Returns ``instance``.
         """
-        
+
         opts = self._meta
         cleaned_data = self.cleaned_data.copy()
         for prop_name in self.instance._doc.keys():
@@ -249,7 +275,7 @@ class BaseDocumentForm(BaseForm):
                 value = cleaned_data.pop(prop_name)
                 if value is not None:
                     setattr(self.instance, prop_name, value)
-            
+
         if dynamic:
             for attr_name in cleaned_data.keys():
                 if opts.exclude and attr_name in opts.exclude:
@@ -257,12 +283,13 @@ class BaseDocumentForm(BaseForm):
                 value = cleaned_data[attr_name]
                 if value is not None:
                     setattr(self.instance, attr_name, value)
-    
+
         if commit:
             self.instance.save()
-        
+
         return self.instance
-            
+
+
 class DocumentForm(BaseDocumentForm):
     """ The document form object """
-    __metaclass__ = DocumentFormMetaClass          
+    __metaclass__ = DocumentFormMetaClass
