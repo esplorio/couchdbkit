@@ -29,8 +29,8 @@ except ImportError:
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
-from django.utils.translation import activate, deactivate_all, get_language, \
-string_concat
+from django.utils.translation import (activate, deactivate_all,
+                                      get_language, string_concat)
 from django.utils.encoding import smart_str, force_unicode
 from django.utils.functional import cached_property
 
