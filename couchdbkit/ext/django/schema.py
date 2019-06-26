@@ -73,6 +73,7 @@ class Options(object):
         self.virtual_fields = []
         self.parents = OrderedDict()
         self.apps = apps
+        self.concrete_model = None
 
     def contribute_to_class(self, cls, name):
         cls._meta = self
