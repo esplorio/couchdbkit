@@ -61,7 +61,7 @@ class Options(object):
     useful bits."""
 
     def __init__(self, meta, app_label=None):
-        self.module_name, self.verbose_name = None, None
+        self.model_name, self.verbose_name = None, None
         self.verbose_name_plural = None
         self.object_name, self.app_label = None, app_label
         self.meta = meta
@@ -77,6 +77,8 @@ class Options(object):
         self.managed = True
         self.db_table = ''
         self.db_tablespace = settings.DEFAULT_TABLESPACE
+        self.default_permissions = ('add', 'change', 'delete')
+        self.permissions = []
 
     def contribute_to_class(self, cls, name):
         cls._meta = self
@@ -84,7 +86,7 @@ class Options(object):
         self.installed = re.sub('\.models$', '', cls.__module__) in settings.INSTALLED_APPS
         # First, construct the default values for these options.
         self.object_name = cls.__name__
-        self.module_name = self.object_name.lower()
+        self.model_name = self.object_name.lower()
         self.verbose_name = get_verbose_name(self.object_name)
         self.model = cls
         self.concrete_model = cls
@@ -116,7 +118,7 @@ class Options(object):
         del self.meta
 
     def __str__(self):
-        return "%s.%s" % (smart_str(self.app_label), smart_str(self.module_name))
+        return "%s.%s" % (smart_str(self.app_label), smart_str(self.model_name))
 
     def verbose_name_raw(self):
         """
