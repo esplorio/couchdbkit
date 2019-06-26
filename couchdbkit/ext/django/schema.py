@@ -74,6 +74,9 @@ class Options(object):
         self.parents = OrderedDict()
         self.apps = apps
         self.concrete_model = None
+        self.managed = True
+        self.db_table = ''
+        self.db_tablespace = settings.DEFAULT_TABLESPACE
 
     def contribute_to_class(self, cls, name):
         cls._meta = self
@@ -84,6 +87,7 @@ class Options(object):
         self.module_name = self.object_name.lower()
         self.verbose_name = get_verbose_name(self.object_name)
         self.model = cls
+        self.concrete_model = cls
 
         # Next, apply any overridden values from 'class Meta'.
         if self.meta:
